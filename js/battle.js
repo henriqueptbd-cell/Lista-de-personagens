@@ -120,7 +120,7 @@ export async function createCombatant(pokemon, level = LEVEL) {
   };
 }
 
-export async function initBattle(playerPokemon, opponentPokemon, difficulty = "normal") {
+export async function initBattle(playerPokemon, opponentPokemon, mode = "cpu", difficulty = "normal") {
   const [player, opponent] = await Promise.all([
     createCombatant(playerPokemon),
     createCombatant(opponentPokemon)
@@ -132,7 +132,8 @@ export async function initBattle(playerPokemon, opponentPokemon, difficulty = "n
     log: [],
     status: "ongoing",
     modifiers: DIFFICULTY[difficultyKey],
-    difficultyKey
+    difficultyKey,
+    mode
   };
 }
 

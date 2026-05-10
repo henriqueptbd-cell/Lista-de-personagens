@@ -12,21 +12,28 @@ let currentState = null;
 
 const TYPEWRITER_SPEED = 25;
 
-export async function startBattle(playerId, opponentId, difficulty = "normal") {
+export async function startBattle(playerId, opponentId, mode = "cpu", difficulty = "normal") {
   const arena = document.getElementById("arena");
   if (!arena) return;
   arena.innerHTML = `<p style="color:var(--gb-darkest);font-size:1.2rem;text-align:center;padding:2rem;">Carregando batalha...</p>`;
 
   try {
     const [playerP, opponentP] = await Promise.all([fetchPokemon(playerId), fetchPokemon(opponentId)]);
-    const state = await initBattle(playerP, opponentP, difficulty);
+    const state = await initBattle(playerP, opponentP, mode, difficulty);
     state.player.namePT = getPokemonNamePT(playerId);
     state.opponent.namePT = getPokemonNamePT(opponentId);
     currentState = state;
     renderBattle(state);
-    await appendLog(`Modo: ${DIFFICULTY_LABEL[state.difficultyKey] || DIFFICULTY_LABEL.normal}`);
-    await appendLog(`Vai, ${state.player.namePT}!`);
-    await appendLog(`Um ${state.opponent.namePT} selvagem apareceu!`);
+    if (mode === "pvp") {
+      await appendLog(`Modo: PVP`);
+      await appendLog(`Jogador 1 escolheu ${state.player.namePT}!`);
+      await appendLog(`Jogador 2 escolheu ${state.opponent.namePT}!`);
+    } else {
+      await appendLog(`Modo: ${DIFFICULTY_LABEL[state.difficultyKey] || DIFFICULTY_LABEL.normal}`);
+      await appendLog(`Vai, ${state.player.namePT}!`);
+      await appendLog(`Um ${state.opponent.namePT} selvagem apareceu!`);
+    }
+    battleLoop();
   } catch (e) {
     console.error("Erro ao iniciar batalha:", e);
     arena.innerHTML = `<p class="error-banner">Erro ao iniciar batalha. Tente novamente.</p>`;
@@ -35,9 +42,8 @@ export async function startBattle(playerId, opponentId, difficulty = "normal") {
 
 function renderBattle(state) {
   const arena = document.getElementById("arena");
-  const playerSprite = state.player.pokemon.sprites?.back_default
-    || state.player.pokemon.sprites?.front_default;
-  const opponentSprite = state.opponent.pokemon.sprites?.front_default;
+  const playerSprite   = pickSprite(state.player.pokemon, "player");
+  const opponentSprite = pickSprite(state.opponent.pokemon, "opponent");
 
   arena.innerHTML = `
     <div class="arena-stage">
@@ -63,17 +69,24 @@ function renderBattle(state) {
       </div>
     </div>
     <div class="battle-bottom">
-      <div class="move-grid" id="move-grid">${renderMoves(state)}</div>
+      <div class="move-grid" id="move-grid"></div>
       <div class="battle-log" id="battle-log"></div>
     </div>
   `;
-
-  attachMoveListeners();
 }
 
-function renderMoves(state) {
-  return state.player.moves.map((m, i) => {
-    const pp = state.player.currentPp[i];
+function pickSprite(pokemon, side) {
+  const v = pokemon.sprites?.versions?.["generation-v"]?.["black-white"]?.animated;
+  if (side === "player") {
+    return v?.back_default || pokemon.sprites?.back_default || pokemon.sprites?.front_default;
+  }
+  return v?.front_default || pokemon.sprites?.front_default;
+}
+
+function renderMoves(state, sideKey = "player") {
+  const c = state[sideKey];
+  return c.moves.map((m, i) => {
+    const pp = c.currentPp[i];
     const typeName = TYPE_NAMES_PT[m.type] || m.type;
     return `
       <button class="move-btn" data-i="${i}" ${pp <= 0 ? "disabled" : ""}>
@@ -92,38 +105,100 @@ function renderMoves(state) {
   }).join("");
 }
 
-function attachMoveListeners() {
-  const grid = document.getElementById("move-grid");
-  if (!grid) return;
-  grid.addEventListener("click", async (e) => {
-    const btn = e.target.closest(".move-btn");
-    if (!btn || btn.disabled) return;
-    const i = parseInt(btn.dataset.i, 10);
-    await runRound(i);
-  });
-}
-
 function statusLabel(condition) {
   if (condition === "poisoned") return "ENVENENADO";
   if (condition === "wet") return "MOLHADO";
   return "";
 }
 
-async function runRound(playerMoveIndex) {
-  if (!currentState || currentState.status !== "ongoing") return;
-  disableMoves();
+// ─── Battle loop ─────────────────────────────────────────────────────────────
 
-  const order = decideTurnOrder(currentState);
-  await appendLog(order[0] === "player"
-    ? "Você é mais rápido e ataca primeiro!"
-    : "O adversário é mais rápido e ataca primeiro!");
+async function battleLoop() {
+  while (currentState && currentState.status === "ongoing") {
+    if (currentState.mode === "pvp") {
+      await runRoundPvP();
+    } else {
+      await runRoundCPU();
+    }
+  }
+}
+
+function awaitMoveChoice(sideKey) {
+  return new Promise(resolve => {
+    const grid = document.getElementById("move-grid");
+    if (!grid) return resolve(0);
+    grid.innerHTML = renderMoves(currentState, sideKey);
+    const handler = (e) => {
+      const btn = e.target.closest(".move-btn");
+      if (!btn || btn.disabled) return;
+      grid.removeEventListener("click", handler);
+      resolve(parseInt(btn.dataset.i, 10));
+    };
+    grid.addEventListener("click", handler);
+  });
+}
+
+async function runRoundCPU() {
+  if (!currentState || currentState.status !== "ongoing") return;
+  const playerMoveIndex   = await awaitMoveChoice("player");
+  const opponentMoveIndex = cpuChooseMove(currentState);
+  await resolveRound({ player: playerMoveIndex, opponent: opponentMoveIndex });
+}
+
+async function runRoundPvP() {
+  if (!currentState || currentState.status !== "ongoing") return;
+
+  await showHandoff("Vez do Jogador 1", "Passe o aparelho e toque para continuar");
+  const playerMoveIndex = await awaitMoveChoice("player");
+  hideMoveGrid();
+
+  await showHandoff("Vez do Jogador 2", "Passe o aparelho e toque para continuar");
+  const opponentMoveIndex = await awaitMoveChoice("opponent");
+  hideMoveGrid();
+
+  await showHandoff("Batalha!", "", { auto: 700 });
+  await resolveRound({ player: playerMoveIndex, opponent: opponentMoveIndex });
+}
+
+function hideMoveGrid() {
+  const grid = document.getElementById("move-grid");
+  if (grid) grid.innerHTML = "";
+}
+
+function showHandoff(title, subtitle, { auto } = {}) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById("pvp-handoff");
+    if (!overlay) return resolve();
+    document.getElementById("handoff-title").textContent = title;
+    document.getElementById("handoff-sub").textContent   = subtitle;
+    const btn = document.getElementById("handoff-btn");
+    btn.style.display = auto ? "none" : "";
+    overlay.hidden = false;
+    if (auto) {
+      setTimeout(() => { overlay.hidden = true; resolve(); }, auto);
+      return;
+    }
+    const onClick = () => {
+      btn.removeEventListener("click", onClick);
+      overlay.hidden = true;
+      resolve();
+    };
+    btn.addEventListener("click", onClick);
+  });
+}
+
+async function resolveRound(moves) {
+  const order  = decideTurnOrder(currentState);
+  const faster = currentState[order[0]].namePT;
+  await appendLog(`${faster} é mais rápido e ataca primeiro!`);
 
   for (const actor of order) {
     if (currentState.status !== "ongoing") break;
     if (currentState[actor].currentHp <= 0) continue;
 
-    const moveIndex = actor === "player" ? playerMoveIndex : cpuChooseMove(currentState);
+    const moveIndex = moves[actor];
     const targetKey = actor === "player" ? "opponent" : "player";
+    const move      = currentState[actor].moves[moveIndex];
 
     const result = executeTurn(currentState, actor, moveIndex);
 
@@ -131,7 +206,11 @@ async function runRound(playerMoveIndex) {
       await appendLog(line);
     }
 
-    if (result.damage > 0 || result.missed === false && !result.isStatus) {
+    if (!result.missed) {
+      await playMoveAnimation(actor, targetKey, move);
+    }
+
+    if (result.damage > 0 || (result.missed === false && !result.isStatus)) {
       shakeSprite(targetKey);
       await animateHpBar(targetKey);
       await sleep(300);
@@ -150,36 +229,39 @@ async function runRound(playerMoveIndex) {
       currentState.status = actor === "player" ? "opponent-won" : "player-won";
       await faintSprite(actor);
       await sleep(800);
-      showVictory(currentState.status === "player-won" ? "win" : "lose");
+      showVictory();
       return;
     }
 
     if (result.targetFainted) {
       await faintSprite(targetKey);
       await sleep(800);
-      showVictory(currentState.status === "player-won" ? "win" : "lose");
+      showVictory();
       return;
     }
   }
-
-  refreshMoves();
-  enableMoves();
 }
 
-function disableMoves() {
-  document.querySelectorAll("#move-grid .move-btn").forEach(b => b.disabled = true);
-}
-function enableMoves() {
-  if (!currentState) return;
-  document.querySelectorAll("#move-grid .move-btn").forEach(b => {
-    const i = parseInt(b.dataset.i, 10);
-    b.disabled = currentState.player.currentPp[i] <= 0;
+// ─── Animations ──────────────────────────────────────────────────────────────
+
+function playMoveAnimation(actor, targetKey, move) {
+  return new Promise(resolve => {
+    const attackerEl = document.getElementById(`combatant-${actor}`);
+    const targetEl   = document.getElementById(`combatant-${targetKey}`);
+    if (!attackerEl || !targetEl) return resolve();
+    const klass = move?.damageClass || "physical";
+    const type  = move?.type || "normal";
+    attackerEl.classList.add(`atk-${klass}`);
+    targetEl.classList.add(`fx-${type}`);
+    setTimeout(() => {
+      attackerEl.classList.remove(`atk-${klass}`);
+      targetEl.classList.remove(`fx-${type}`);
+      resolve();
+    }, 650);
   });
 }
-function refreshMoves() {
-  const grid = document.getElementById("move-grid");
-  if (grid && currentState) grid.innerHTML = renderMoves(currentState);
-}
+
+// ─── UI helpers ──────────────────────────────────────────────────────────────
 
 function appendLog(text) {
   return new Promise(resolve => {
@@ -210,12 +292,12 @@ function shakeSprite(side) {
 
 function animateHpBar(side) {
   return new Promise(resolve => {
-    const c = currentState[side];
+    const c   = currentState[side];
     const bar = document.getElementById(`hp-${side}`);
     if (!bar) return resolve();
     const pct = Math.max(0, (c.currentHp / c.maxHp) * 100);
     bar.style.width = pct + "%";
-    bar.classList.toggle("low", pct < 50 && pct >= 20);
+    bar.classList.toggle("low",      pct < 50 && pct >= 20);
     bar.classList.toggle("critical", pct < 20);
     const txt = document.getElementById(`hp-text-${side}`);
     if (txt) txt.textContent = `${c.currentHp} / ${c.maxHp}`;
@@ -232,12 +314,19 @@ function faintSprite(side) {
   });
 }
 
-function showVictory(kind) {
+function showVictory() {
   const overlay = document.getElementById("victory-overlay");
-  const title = document.getElementById("victory-title");
+  const title   = document.getElementById("victory-title");
   if (!overlay || !title) return;
-  title.className = kind === "win" ? "win" : "lose";
-  title.textContent = kind === "win" ? "VOCÊ VENCEU!" : "VOCÊ PERDEU!";
+  const status = currentState.status;
+  const mode   = currentState.mode;
+  if (mode === "pvp") {
+    title.className   = "win";
+    title.textContent = status === "player-won" ? "JOGADOR 1 VENCEU!" : "JOGADOR 2 VENCEU!";
+  } else {
+    title.className   = status === "player-won" ? "win" : "lose";
+    title.textContent = status === "player-won" ? "VOCÊ VENCEU!" : "VOCÊ PERDEU!";
+  }
   overlay.classList.add("show");
 }
 
@@ -249,9 +338,10 @@ export function hideVictoryOverlay() {
 export function getCurrentBattleIds() {
   if (!currentState) return null;
   return {
-    playerId: currentState.player.pokemon.id,
+    playerId:   currentState.player.pokemon.id,
     opponentId: currentState.opponent.pokemon.id,
-    difficulty: currentState.difficultyKey || "normal"
+    difficulty: currentState.difficultyKey || "normal",
+    mode:       currentState.mode || "cpu"
   };
 }
 

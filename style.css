@@ -1024,6 +1024,8 @@ a { color: inherit; text-decoration: none; }
   width: clamp(80px, 22vw, 140px);
   height: clamp(80px, 22vw, 140px);
   display: flex; align-items: center; justify-content: center;
+  position: relative;
+  overflow: visible;
 }
 .combatant .sprite img {
   width: 100%; height: 100%; object-fit: contain;
@@ -1192,6 +1194,47 @@ a { color: inherit; text-decoration: none; }
   .move-btn .move-desc { font-size: 0.95rem; }
 }
 
+
+/* =========================================================
+   ATTACK ANIMATIONS — TARGET flash (type)
+   ========================================================= */
+.combatant .sprite::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--fx-color, white) 0%, transparent 65%);
+  mix-blend-mode: screen;
+}
+@keyframes fx-flash {
+  0%   { opacity: 0;    transform: scale(0.4); }
+  30%  { opacity: 0.95; transform: scale(1.2); }
+  70%  { opacity: 0.6;  transform: scale(1.4); }
+  100% { opacity: 0;    transform: scale(1.6); }
+}
+.combatant[class*="fx-"] .sprite::after { animation: fx-flash 0.55s ease-out; }
+
+.combatant.fx-fire     { --fx-color: #ff5722; }
+.combatant.fx-water    { --fx-color: #2196f3; }
+.combatant.fx-electric { --fx-color: #ffeb3b; }
+.combatant.fx-grass    { --fx-color: #4caf50; }
+.combatant.fx-ice      { --fx-color: #90caf9; }
+.combatant.fx-fighting { --fx-color: #b71c1c; }
+.combatant.fx-poison   { --fx-color: #9c27b0; }
+.combatant.fx-ground   { --fx-color: #8d6e63; }
+.combatant.fx-flying   { --fx-color: #b3e5fc; }
+.combatant.fx-psychic  { --fx-color: #e91e63; }
+.combatant.fx-bug      { --fx-color: #8bc34a; }
+.combatant.fx-rock     { --fx-color: #795548; }
+.combatant.fx-ghost    { --fx-color: #7b1fa2; }
+.combatant.fx-dragon   { --fx-color: #5e35b1; }
+.combatant.fx-dark     { --fx-color: #424242; }
+.combatant.fx-steel    { --fx-color: #b0bec5; }
+.combatant.fx-fairy    { --fx-color: #f48fb1; }
+.combatant.fx-normal   { --fx-color: #fafafa; }
+
 /* =========================================================
    ERROR / LOADING STATES
    ========================================================= */
@@ -1227,10 +1270,190 @@ a { color: inherit; text-decoration: none; }
   .pokemon-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
 }
 
+/* =========================================================
+   MODE TOGGLE (select screen)
+   ========================================================= */
+.mode-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0 auto 1rem;
+}
+.mode-btn {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.7rem;
+  padding: 0.6rem 1rem;
+  background: var(--gb-bg);
+  color: var(--gb-darkest);
+  border: 3px solid var(--gb-dark);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mode-btn.active {
+  background: var(--gb-dark);
+  color: var(--gb-bg);
+}
+.mode-btn:hover:not(.active) { background: var(--gb-light); }
+@media (max-width: 480px) {
+  .mode-btn { font-size: 0.55rem; padding: 0.5rem 0.7rem; }
+}
+
+/* =========================================================
+   PVP HANDOFF OVERLAY
+   ========================================================= */
+.pvp-handoff {
+  position: fixed;
+  inset: 0;
+  background: var(--gb-darkest);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+}
+.pvp-handoff[hidden] { display: none; }
+.handoff-card {
+  background: var(--gb-bg);
+  border: 4px solid var(--gb-dark);
+  padding: 2rem;
+  text-align: center;
+  max-width: 360px;
+  width: 90%;
+  box-shadow: 0 0 0 4px var(--gb-darkest);
+}
+.handoff-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 1rem;
+  color: var(--gb-darkest);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+.handoff-sub {
+  font-family: 'VT323', monospace;
+  font-size: 1.2rem;
+  color: var(--gb-dark);
+  margin-bottom: 1.5rem;
+}
+.handoff-btn {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.65rem;
+  padding: 1rem 1.5rem;
+  background: var(--gb-dark);
+  color: var(--gb-bg);
+  border: 3px solid var(--gb-darkest);
+  cursor: pointer;
+  width: 100%;
+  min-height: 54px;
+  transition: background 0.15s;
+}
+.handoff-btn:hover { background: var(--gb-darkest); }
+.handoff-btn:active { transform: translateY(2px); }
+
+/* =========================================================
+   ATTACK ANIMATIONS — ATTACKER MOVEMENT (by damage_class)
+   ========================================================= */
+@keyframes atk-physical-player {
+  0%   { transform: translateX(0); }
+  40%  { transform: translateX(48px) scale(1.08); }
+  55%  { transform: translateX(48px) scale(1.08); }
+  100% { transform: translateX(0); }
+}
+@keyframes atk-physical-opponent {
+  0%   { transform: translateX(0); }
+  40%  { transform: translateX(-48px) scale(1.08); }
+  55%  { transform: translateX(-48px) scale(1.08); }
+  100% { transform: translateX(0); }
+}
+.combatant.atk-physical .sprite img {
+  animation: atk-physical-player 0.6s ease-out;
+}
+.combatant.opponent.atk-physical .sprite img {
+  animation: atk-physical-opponent 0.6s ease-out;
+}
+
+@keyframes atk-special {
+  0%   { transform: scale(1)    translateX(0);     filter: brightness(1); }
+  25%  { transform: scale(0.9)  translateX(-12px); filter: brightness(1.3) saturate(1.4); }
+  55%  { transform: scale(1.05) translateX(0);     filter: brightness(1.8) saturate(1.6); }
+  100% { transform: scale(1)    translateX(0);     filter: brightness(1); }
+}
+.combatant.atk-special .sprite img,
+.combatant.opponent.atk-special .sprite img {
+  animation: atk-special 0.65s ease-out;
+}
+
+@keyframes atk-status {
+  0%, 100% { transform: scale(1);    filter: brightness(1)   saturate(1); }
+  50%      { transform: scale(1.08); filter: brightness(1.5) saturate(1.6) hue-rotate(15deg); }
+}
+.combatant.atk-status .sprite img,
+.combatant.opponent.atk-status .sprite img {
+  animation: atk-status 0.6s ease-in-out;
+}
+
+/* =========================================================
+   ATTACK ANIMATIONS — TYPE FLASH ON DEFENDER
+   ========================================================= */
+.combatant .sprite { position: relative; overflow: visible; }
+.combatant .sprite::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--fx-color, #ffffff) 0%, transparent 65%);
+  mix-blend-mode: screen;
+}
+@keyframes fx-flash {
+  0%   { opacity: 0;    transform: scale(0.4); }
+  30%  { opacity: 0.95; transform: scale(1.2); }
+  70%  { opacity: 0.6;  transform: scale(1.4); }
+  100% { opacity: 0;    transform: scale(1.6); }
+}
+.combatant[class*="fx-"] .sprite::after { animation: fx-flash 0.55s ease-out; }
+
+.combatant.fx-fire     { --fx-color: #ff5722; }
+.combatant.fx-water    { --fx-color: #2196f3; }
+.combatant.fx-electric { --fx-color: #ffeb3b; }
+.combatant.fx-grass    { --fx-color: #4caf50; }
+.combatant.fx-ice      { --fx-color: #90caf9; }
+.combatant.fx-fighting { --fx-color: #b71c1c; }
+.combatant.fx-poison   { --fx-color: #9c27b0; }
+.combatant.fx-ground   { --fx-color: #8d6e63; }
+.combatant.fx-flying   { --fx-color: #b3e5fc; }
+.combatant.fx-psychic  { --fx-color: #e91e63; }
+.combatant.fx-bug      { --fx-color: #8bc34a; }
+.combatant.fx-rock     { --fx-color: #795548; }
+.combatant.fx-ghost    { --fx-color: #7b1fa2; }
+.combatant.fx-dragon   { --fx-color: #5e35b1; }
+.combatant.fx-dark     { --fx-color: #424242; }
+.combatant.fx-steel    { --fx-color: #b0bec5; }
+.combatant.fx-fairy    { --fx-color: #f48fb1; }
+.combatant.fx-normal   { --fx-color: #fafafa; }
+
+@media (prefers-reduced-motion: reduce) {
+  .combatant.atk-physical .sprite img,
+  .combatant.opponent.atk-physical .sprite img,
+  .combatant.atk-special .sprite img,
+  .combatant.opponent.atk-special .sprite img,
+  .combatant.atk-status .sprite img,
+  .combatant.opponent.atk-status .sprite img,
+  .combatant[class*="fx-"] .sprite::after {
+    animation-duration: 0.15s !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01s !important;
+  }
+  .combatant.atk-physical .sprite img,
+  .combatant.opponent.atk-physical .sprite img,
+  .combatant.atk-special .sprite img,
+  .combatant.atk-status  .sprite img,
+  .combatant[class*="fx-"] .sprite::after {
+    animation-duration: 0.15s !important;
   }
 }

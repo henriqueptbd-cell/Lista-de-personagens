@@ -1,7 +1,7 @@
 import { getCachedPokemon, getPokemonNamePT } from "./api.js";
 import { openPicker } from "./pokedex.js";
 
-const state = { player: null, opponent: null, difficulty: "normal" };
+const state = { player: null, opponent: null, difficulty: "normal", mode: "cpu" };
 let allPokemons = [];
 let onStartCallback = null;
 
@@ -33,6 +33,16 @@ function attachListeners() {
     });
   });
 
+  document.querySelectorAll(".mode-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      state.mode = btn.dataset.mode;
+      document.querySelectorAll(".mode-btn").forEach(b =>
+        b.classList.toggle("active", b === btn)
+      );
+      updateSlotLabels();
+    });
+  });
+
   const diffButtons = document.querySelectorAll(".diff-btn");
   diffButtons.forEach(btn => {
     btn.addEventListener("click", () => {
@@ -47,11 +57,20 @@ function attachListeners() {
   if (startBtn) {
     startBtn.addEventListener("click", () => {
       if (state.player && state.opponent && onStartCallback) {
-        onStartCallback(state.player, state.opponent, state.difficulty);
+        onStartCallback(state.player, state.opponent, state.mode, state.difficulty);
       }
     });
   }
   refreshDifficulty();
+  updateSlotLabels();
+}
+
+function updateSlotLabels() {
+  const isPvp = state.mode === "pvp";
+  const playerLabel = document.querySelector('.slot[data-slot="player"] .slot-title');
+  const oppLabel    = document.querySelector('.slot[data-slot="opponent"] .slot-title');
+  if (playerLabel) playerLabel.textContent = isPvp ? "JOGADOR 1" : "JOGADOR";
+  if (oppLabel)    oppLabel.textContent    = isPvp ? "JOGADOR 2" : "ADVERSÁRIO";
 }
 
 function refreshAll() {

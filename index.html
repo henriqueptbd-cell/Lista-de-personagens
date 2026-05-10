@@ -44,9 +44,13 @@
         <div class="gb-screen">
           <div class="select-wrap">
             <h2>ESCOLHA OS LUTADORES</h2>
+            <div class="mode-toggle">
+              <button class="mode-btn active" data-mode="cpu">🤖 vs CPU</button>
+              <button class="mode-btn" data-mode="pvp">👥 vs AMIGO</button>
+            </div>
             <div class="slots">
               <div class="slot" data-slot="player">
-                <h3>SEU POKÉMON</h3>
+                <h3 class="slot-title">JOGADOR</h3>
                 <div class="slot-preview"><span class="empty">— vazio —</span></div>
                 <div class="name">&nbsp;</div>
                 <div class="slot-actions">
@@ -55,7 +59,7 @@
                 </div>
               </div>
               <div class="slot" data-slot="opponent">
-                <h3>ADVERSÁRIO</h3>
+                <h3 class="slot-title">ADVERSÁRIO</h3>
                 <div class="slot-preview"><span class="empty">— vazio —</span></div>
                 <div class="name">&nbsp;</div>
                 <div class="slot-actions">
@@ -81,6 +85,13 @@
       <!-- BATTLE -->
       <section id="screen-battle" class="screen">
         <div class="arena" id="arena"></div>
+        <div class="pvp-handoff" id="pvp-handoff" hidden>
+          <div class="handoff-card">
+            <h2 class="handoff-title" id="handoff-title">Vez do Jogador 1</h2>
+            <p class="handoff-sub" id="handoff-sub">Passe o aparelho e toque para continuar</p>
+            <button class="handoff-btn" id="handoff-btn">TOCAR PARA CONTINUAR</button>
+          </div>
+        </div>
       </section>
     </main>
 
