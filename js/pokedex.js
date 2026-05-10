@@ -38,7 +38,9 @@ function cardHTML(p) {
   return `
     <div class="pokemon-card" data-id="${p.id}" tabindex="0" role="button" aria-label="${namePT}">
       <span class="id">#${String(p.id).padStart(3, "0")}</span>
-      <img src="${sprite}" alt="${namePT}" loading="lazy" decoding="async">
+      <div class="pokemon-sprite">
+        <img src="${sprite}" alt="${namePT}" loading="lazy" decoding="async">
+      </div>
       <div class="name">${namePT}</div>
       <div class="types">${types}</div>
     </div>
@@ -101,13 +103,24 @@ export function openDetailsModal(pokemon, options = {}) {
       <h3>HABILIDADES</h3>
       <div class="attack-list">${abilitiesHtml || '<span class="attack-tag">—</span>'}</div>
     </div>
-    ${options.onSelect ? '<button class="select-pokemon-btn">ESCOLHER ESTE POKÉMON</button>' : ''}
+    ${options.onSelect || options.onBack ? '<div class="detail-actions"></div>' : ''}
   `;
 
-  if (options.onSelect) {
-    const button = details().querySelector(".select-pokemon-btn");
-    if (button) {
-      button.addEventListener("click", () => options.onSelect(pokemon.id));
+  const actions = details().querySelector(".detail-actions");
+  if (actions) {
+    if (options.onBack) {
+      const backBtn = document.createElement("button");
+      backBtn.className = "detail-back-btn";
+      backBtn.textContent = "VOLTAR";
+      backBtn.addEventListener("click", () => options.onBack());
+      actions.appendChild(backBtn);
+    }
+    if (options.onSelect) {
+      const selectBtn = document.createElement("button");
+      selectBtn.className = "select-pokemon-btn";
+      selectBtn.textContent = "ESCOLHER ESTE POKÉMON";
+      selectBtn.addEventListener("click", () => options.onSelect(pokemon.id));
+      actions.appendChild(selectBtn);
     }
   }
 
@@ -168,7 +181,10 @@ export function openPicker(allPokemons, onPick) {
     const id = parseInt(card.dataset.id, 10);
     const pokemon = allPokemons.find(x => x.id === id);
     if (pokemon) {
-      openDetailsModal(pokemon, { onSelect: pickerCallback });
+      openDetailsModal(pokemon, {
+        onSelect: pickerCallback,
+        onBack: () => openPicker(allPokemons, onPick)
+      });
     }
   });
   modal().classList.add("open");
