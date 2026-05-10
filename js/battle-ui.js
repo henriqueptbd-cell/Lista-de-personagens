@@ -1,23 +1,30 @@
-import { initBattle, executeTurn, decideTurnOrder, cpuChooseMove } from "./battle.js";
+import { initBattle, executeTurn, decideTurnOrder, cpuChooseMove, resolveStatusEffects } from "./battle.js";
 import { getPokemonNamePT, fetchPokemon } from "./api.js";
-import { TYPE_NAMES_PT } from "./translations.js";
+import { TYPE_NAMES_PT, describeMove } from "./translations.js";
+
+const DIFFICULTY_LABEL = {
+  easy: "FÁCIL",
+  normal: "NORMAL",
+  hard: "DIFÍCIL"
+};
 
 let currentState = null;
 
 const TYPEWRITER_SPEED = 25;
 
-export async function startBattle(playerId, opponentId) {
+export async function startBattle(playerId, opponentId, difficulty = "normal") {
   const arena = document.getElementById("arena");
   if (!arena) return;
   arena.innerHTML = `<p style="color:var(--gb-darkest);font-size:1.2rem;text-align:center;padding:2rem;">Carregando batalha...</p>`;
 
   try {
     const [playerP, opponentP] = await Promise.all([fetchPokemon(playerId), fetchPokemon(opponentId)]);
-    const state = await initBattle(playerP, opponentP);
+    const state = await initBattle(playerP, opponentP, difficulty);
     state.player.namePT = getPokemonNamePT(playerId);
     state.opponent.namePT = getPokemonNamePT(opponentId);
     currentState = state;
     renderBattle(state);
+    await appendLog(`Modo: ${DIFFICULTY_LABEL[state.difficultyKey] || DIFFICULTY_LABEL.normal}`);
     await appendLog(`Vai, ${state.player.namePT}!`);
     await appendLog(`Um ${state.opponent.namePT} selvagem apareceu!`);
   } catch (e) {
@@ -36,25 +43,28 @@ function renderBattle(state) {
     <div class="arena-stage">
       <div class="combatant opponent" id="combatant-opponent">
         <div class="info">
-          <div class="name-row"><span>${state.opponent.namePT}</span><span>Lv.${state.opponent.level}</span></div>
+          <div class="name-row"><span>${state.opponent.namePT}</span></div>
           <div class="hp-label">HP</div>
           <div class="hp-bar-bg"><div class="hp-bar" id="hp-opponent" style="width:100%"></div></div>
+          <div class="hp-text" id="hp-text-opponent">${state.opponent.currentHp} / ${state.opponent.maxHp}</div>
+          ${state.opponent.statusCondition ? `<div class="status-pill" id="status-opponent">${statusLabel(state.opponent.statusCondition)}</div>` : ""}
         </div>
         <div class="sprite"><img src="${opponentSprite}" alt="${state.opponent.namePT}"></div>
       </div>
       <div class="combatant" id="combatant-player">
         <div class="sprite"><img src="${playerSprite}" alt="${state.player.namePT}"></div>
         <div class="info">
-          <div class="name-row"><span>${state.player.namePT}</span><span>Lv.${state.player.level}</span></div>
+          <div class="name-row"><span>${state.player.namePT}</span></div>
           <div class="hp-label">HP</div>
           <div class="hp-bar-bg"><div class="hp-bar" id="hp-player" style="width:100%"></div></div>
           <div class="hp-text" id="hp-text-player">${state.player.currentHp} / ${state.player.maxHp}</div>
+          ${state.player.statusCondition ? `<div class="status-pill" id="status-player">${statusLabel(state.player.statusCondition)}</div>` : ""}
         </div>
       </div>
     </div>
     <div class="battle-bottom">
-      <div class="battle-log" id="battle-log"></div>
       <div class="move-grid" id="move-grid">${renderMoves(state)}</div>
+      <div class="battle-log" id="battle-log"></div>
     </div>
   `;
 
@@ -67,11 +77,16 @@ function renderMoves(state) {
     const typeName = TYPE_NAMES_PT[m.type] || m.type;
     return `
       <button class="move-btn" data-i="${i}" ${pp <= 0 ? "disabled" : ""}>
-        <span class="move-name">${m.displayName}</span>
-        <span class="move-meta">
+        <div class="move-head">
+          <span class="move-name">${m.displayName}</span>
           <span class="type-tag ${m.type}">${typeName}</span>
+        </div>
+        <div class="move-stats">
+          <span>PWR ${m.power || "—"}</span>
+          <span>ACC ${m.accuracy != null ? m.accuracy + "%" : "—"}</span>
           <span>PP ${pp}/${m.pp}</span>
-        </span>
+        </div>
+        <div class="move-desc">${describeMove(m)}</div>
       </button>
     `;
   }).join("");
@@ -88,11 +103,21 @@ function attachMoveListeners() {
   });
 }
 
+function statusLabel(condition) {
+  if (condition === "poisoned") return "ENVENENADO";
+  if (condition === "wet") return "MOLHADO";
+  return "";
+}
+
 async function runRound(playerMoveIndex) {
   if (!currentState || currentState.status !== "ongoing") return;
   disableMoves();
 
   const order = decideTurnOrder(currentState);
+  await appendLog(order[0] === "player"
+    ? "Você é mais rápido e ataca primeiro!"
+    : "O adversário é mais rápido e ataca primeiro!");
+
   for (const actor of order) {
     if (currentState.status !== "ongoing") break;
     if (currentState[actor].currentHp <= 0) continue;
@@ -110,6 +135,23 @@ async function runRound(playerMoveIndex) {
       shakeSprite(targetKey);
       await animateHpBar(targetKey);
       await sleep(300);
+    }
+
+    const statusLogs = resolveStatusEffects(currentState[actor]);
+    for (const line of statusLogs) {
+      await appendLog(line);
+    }
+    if (statusLogs.length) {
+      await animateHpBar(actor);
+      await sleep(250);
+    }
+
+    if (currentState[actor].currentHp <= 0) {
+      currentState.status = actor === "player" ? "opponent-won" : "player-won";
+      await faintSprite(actor);
+      await sleep(800);
+      showVictory(currentState.status === "player-won" ? "win" : "lose");
+      return;
     }
 
     if (result.targetFainted) {
@@ -145,8 +187,7 @@ function appendLog(text) {
     if (!log) return resolve();
     const line = document.createElement("span");
     line.className = "line";
-    log.appendChild(line);
-    while (log.children.length > 4) log.removeChild(log.firstChild);
+    log.prepend(line);
     let i = 0;
     const tick = () => {
       if (i >= text.length) {
@@ -176,10 +217,8 @@ function animateHpBar(side) {
     bar.style.width = pct + "%";
     bar.classList.toggle("low", pct < 50 && pct >= 20);
     bar.classList.toggle("critical", pct < 20);
-    if (side === "player") {
-      const txt = document.getElementById("hp-text-player");
-      if (txt) txt.textContent = `${c.currentHp} / ${c.maxHp}`;
-    }
+    const txt = document.getElementById(`hp-text-${side}`);
+    if (txt) txt.textContent = `${c.currentHp} / ${c.maxHp}`;
     setTimeout(resolve, 700);
   });
 }
@@ -211,7 +250,8 @@ export function getCurrentBattleIds() {
   if (!currentState) return null;
   return {
     playerId: currentState.player.pokemon.id,
-    opponentId: currentState.opponent.pokemon.id
+    opponentId: currentState.opponent.pokemon.id,
+    difficulty: currentState.difficultyKey || "normal"
   };
 }
 

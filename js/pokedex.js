@@ -1,5 +1,6 @@
 import { getPokemonNamePT } from "./api.js";
 import { TYPE_NAMES_PT, STAT_NAMES_PT, translateMoveName } from "./translations.js";
+import { TYPE_CHART, getEffectiveness } from "./types.js";
 
 const grid = () => document.getElementById("pokemon-grid");
 const modal = () => document.getElementById("modal");
@@ -68,7 +69,7 @@ export function attachCardListeners(allPokemons) {
   });
 }
 
-export function openDetailsModal(pokemon) {
+export function openDetailsModal(pokemon, options = {}) {
   const namePT = getPokemonNamePT(pokemon.id);
   const artwork = pokemon.sprites?.other?.["official-artwork"]?.front_default || pokemon.sprites?.front_default;
 
@@ -88,17 +89,62 @@ export function openDetailsModal(pokemon) {
     <span class="attack-tag">${translateMoveName(a.ability.name)}</span>
   `).join("");
 
+  const typeAdv = renderTypeAdvantages(pokemon);
+
   details().innerHTML = `
     <img src="${artwork}" alt="${namePT}" class="smooth-img">
     <h2 id="modal-title">${namePT}</h2>
     <div class="types-modal">${typesHtml}</div>
+    <div class="type-advantage">${typeAdv}</div>
     <div class="stats-container">${statsHtml}</div>
     <div class="attacks-container">
       <h3>HABILIDADES</h3>
       <div class="attack-list">${abilitiesHtml || '<span class="attack-tag">—</span>'}</div>
     </div>
+    ${options.onSelect ? '<button class="select-pokemon-btn">ESCOLHER ESTE POKÉMON</button>' : ''}
   `;
+
+  if (options.onSelect) {
+    const button = details().querySelector(".select-pokemon-btn");
+    if (button) {
+      button.addEventListener("click", () => options.onSelect(pokemon.id));
+    }
+  }
+
   modal().classList.add("open");
+}
+
+function renderTypeAdvantages(pokemon) {
+  const defenderTypes = pokemon.types.map(t => t.type.name);
+  const strengths = [];
+  const resistances = [];
+  const immunities = [];
+
+  Object.keys(TYPE_CHART).forEach(attackerType => {
+    const mult = getEffectiveness(attackerType, defenderTypes);
+    if (mult >= 2) strengths.push(attackerType);
+    else if (mult === 0) immunities.push(attackerType);
+    else if (mult > 0 && mult < 1) resistances.push(attackerType);
+  });
+
+  const renderList = (items) => items.length
+    ? items.map(type => `<span class="type-tag ${type}">${TYPE_NAMES_PT[type] || type}</span>`).join("")
+    : '<span class="attack-tag">—</span>';
+
+  return `
+    <div class="advantage-row">
+      <strong>Vantagens</strong>
+      <div class="advantage-list">${renderList(strengths)}</div>
+    </div>
+    <div class="advantage-row">
+      <strong>Resistências</strong>
+      <div class="advantage-list">${renderList(resistances)}</div>
+    </div>
+    <div class="advantage-row">
+      <strong>Imunidades</strong>
+      <div class="advantage-list">${renderList(immunities)}</div>
+    </div>
+  `;
 }
 
 export function openPicker(allPokemons, onPick) {
@@ -111,6 +157,7 @@ export function openPicker(allPokemons, onPick) {
   };
   details().innerHTML = `
     <h2 id="modal-title">Escolha um Pokémon</h2>
+    <p class="picker-hint">Clique em um card para ver os detalhes e escolher.</p>
     <div class="picker-grid">
       ${allPokemons.map(p => cardHTML(p)).join("")}
     </div>
@@ -119,7 +166,10 @@ export function openPicker(allPokemons, onPick) {
     const card = e.target.closest(".pokemon-card");
     if (!card) return;
     const id = parseInt(card.dataset.id, 10);
-    if (pickerCallback) pickerCallback(id);
+    const pokemon = allPokemons.find(x => x.id === id);
+    if (pokemon) {
+      openDetailsModal(pokemon, { onSelect: pickerCallback });
+    }
   });
   modal().classList.add("open");
 }

@@ -711,6 +711,63 @@ a { color: inherit; text-decoration: none; }
   border-radius: 4px;
   font-size: 0.95rem;
 }
+.picker-hint {
+  margin: 0.5rem 0 1rem;
+  font-family: 'VT323', monospace;
+  font-size: 0.95rem;
+  color: var(--gb-dark);
+}
+.type-advantage {
+  margin: 0.5rem 0 1rem;
+  padding: 0.75rem;
+  border: 3px dashed var(--gb-darkest);
+  background: var(--gb-light);
+  text-align: left;
+}
+.advantage-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+.advantage-row strong {
+  min-width: 110px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.7rem;
+  color: var(--gb-darkest);
+}
+.advantage-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.select-pokemon-btn {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  width: 100%;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.75rem;
+  color: var(--gb-lightest);
+  background: var(--accent-hot);
+  border: 3px solid var(--gb-darkest);
+  cursor: pointer;
+}
+.select-pokemon-btn:hover {
+  background: #ff5b3d;
+}
+.status-pill {
+  display: inline-block;
+  margin-top: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.55rem;
+  border: 2px solid var(--gb-darkest);
+  border-radius: 4px;
+  color: var(--gb-lightest);
+  background: rgba(0,0,0,0.7);
+}
 
 /* =========================================================
    TYPE TAGS (shared)
@@ -951,7 +1008,10 @@ a { color: inherit; text-decoration: none; }
   color: var(--gb-lightest);
   border: 4px solid var(--gb-light);
   padding: 0.75rem 1rem;
-  min-height: 80px;
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   font-size: 1.1rem;
   line-height: 1.4;
   border-radius: 4px;
@@ -963,22 +1023,96 @@ a { color: inherit; text-decoration: none; }
   gap: 0.5rem;
 }
 .move-btn {
-  padding: 0.6rem 0.5rem;
+  padding: 0.5rem 0.6rem;
   background: var(--gb-bg);
   border: 3px solid var(--gb-darkest);
   font-family: 'Press Start 2P', monospace;
-  font-size: 0.5rem;
+  font-size: 0.6rem;
   color: var(--gb-darkest);
   text-align: left;
   cursor: pointer;
-  min-height: 60px;
-  transition: background 0.15s;
+  min-height: 92px;
+  transition: background 0.15s, transform 0.15s;
   letter-spacing: 0.5px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
-.move-btn:hover:not(:disabled) { background: var(--gb-light); }
+.move-btn:hover:not(:disabled) { background: var(--gb-light); transform: translateY(-1px); }
 .move-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.move-btn .move-name { display: block; margin-bottom: 0.3rem; word-break: break-word; }
-.move-btn .move-meta { font-size: 0.45rem; color: var(--gb-dark); display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.move-btn .move-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-bottom: 0.45rem;
+}
+.move-btn .move-name {
+  display: block;
+  word-break: break-word;
+  font-size: 0.8rem;
+}
+.move-btn .move-stats {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  font-size: 0.65rem;
+  color: var(--gb-dark);
+  margin-bottom: 0.35rem;
+}
+.move-btn .move-desc {
+  font-family: 'VT323', monospace;
+  font-size: 1rem;
+  color: var(--gb-darkest);
+  line-height: 1.3;
+}
+.difficulty-picker {
+  margin: 1rem 0 0.75rem;
+  padding: 0.85rem 0.9rem;
+  background: var(--gb-bg);
+  border: 3px solid var(--gb-darkest);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.diff-label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+  color: var(--gb-darkest);
+}
+.diff-options {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.diff-btn {
+  min-width: 90px;
+  padding: 0.65rem 0.75rem;
+  border: 3px solid var(--gb-darkest);
+  background: var(--gb-light);
+  color: var(--gb-darkest);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.65rem;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+.diff-btn.active {
+  background: var(--gb-darkest);
+  color: var(--gb-light);
+}
+.diff-btn:hover {
+  transform: translateY(-1px);
+}
+.diff-hint {
+  font-family: 'VT323', monospace;
+  font-size: 1rem;
+  color: var(--gb-darkest);
+  font-style: italic;
+  margin: 0;
+  text-align: center;
+}
 
 .victory-overlay {
   position: fixed; inset: 0;
@@ -1005,6 +1139,13 @@ a { color: inherit; text-decoration: none; }
 }
 .victory-actions { display: flex; flex-direction: column; gap: 0.75rem; width: 100%; max-width: 320px; }
 .victory-actions .cta { font-size: 0.65rem; padding: 0.85rem 1rem; }
+
+@media (max-width: 480px) {
+  .battle-log { max-height: 160px; }
+  .move-grid { grid-template-columns: 1fr; }
+  .move-btn { min-height: 86px; }
+  .move-btn .move-desc { font-size: 0.95rem; }
+}
 
 /* =========================================================
    ERROR / LOADING STATES

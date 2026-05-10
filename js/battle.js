@@ -7,6 +7,24 @@ const CRIT_CHANCE = 0.0625;
 const CRIT_MULT = 1.5;
 const STAB_MULT = 1.5;
 
+export const DIFFICULTY = {
+  easy: {
+    player: { accMult: 1.2, critMult: 1.5 },
+    opponent: { accMult: 0.85, critMult: 1.0 },
+    cpuBestChance: 0.1
+  },
+  normal: {
+    player: { accMult: 1.0, critMult: 1.0 },
+    opponent: { accMult: 1.0, critMult: 1.0 },
+    cpuBestChance: 0.3
+  },
+  hard: {
+    player: { accMult: 0.85, critMult: 1.0 },
+    opponent: { accMult: 1.1, critMult: 1.5 },
+    cpuBestChance: 0.6
+  }
+};
+
 function statByName(pokemon, name) {
   const s = pokemon.stats.find(x => x.stat.name === name);
   return s ? s.base_stat : 50;
@@ -97,52 +115,56 @@ export async function createCombatant(pokemon, level = LEVEL) {
     },
     types: pokemon.types.map(t => t.type.name),
     moves,
-    currentPp: moves.map(m => m.pp)
+    currentPp: moves.map(m => m.pp),
+    statusCondition: null
   };
 }
 
-export async function initBattle(playerPokemon, opponentPokemon) {
+export async function initBattle(playerPokemon, opponentPokemon, difficulty = "normal") {
   const [player, opponent] = await Promise.all([
     createCombatant(playerPokemon),
     createCombatant(opponentPokemon)
   ]);
+  const difficultyKey = DIFFICULTY[difficulty] ? difficulty : "normal";
   return {
     player,
     opponent,
     log: [],
-    status: "ongoing"
+    status: "ongoing",
+    modifiers: DIFFICULTY[difficultyKey],
+    difficultyKey
   };
 }
 
-export function calculateDamage(attacker, defender, move) {
+export function calculateDamage(attacker, defender, move, mods) {
   if (!move || move.power === 0) {
     return { damage: 0, effectiveness: 1, crit: false, missed: false, isStatus: true };
   }
-  const accuracy = move.accuracy ?? 100;
+  const accuracy = Math.min(100, (move.accuracy ?? 100) * (mods?.accMult ?? 1));
   if (Math.random() * 100 > accuracy) {
     return { damage: 0, effectiveness: 1, crit: false, missed: true, isStatus: false };
   }
-  const crit = Math.random() < CRIT_CHANCE;
+  const crit = Math.random() < Math.min(1, CRIT_CHANCE * (mods?.critMult ?? 1));
   const stab = attacker.types.includes(move.type) ? STAB_MULT : 1;
   const effectiveness = getEffectiveness(move.type, defender.types);
   const isPhysical = move.damageClass === "physical";
   const atk = isPhysical ? attacker.stats.atk : attacker.stats.spAtk;
   const def = isPhysical ? defender.stats.def : defender.stats.spDef;
   const variance = 0.85 + Math.random() * 0.15;
+  const statusModifier = move.type === "fire" && defender.statusCondition === "wet" ? 0.5 : 1;
 
   let damage = Math.floor(((2 * attacker.level / 5 + 2) * move.power * (atk / def)) / 50 + 2);
-  damage = Math.floor(damage * stab * effectiveness * (crit ? CRIT_MULT : 1) * variance);
+  damage = Math.floor(damage * stab * effectiveness * (crit ? CRIT_MULT : 1) * variance * statusModifier);
   damage = Math.max(effectiveness === 0 ? 0 : 1, damage);
 
-  return { damage, effectiveness, crit, missed: false, isStatus: false };
+  return { damage, effectiveness, crit, missed: false, isStatus: false, statusModifier };
 }
 
 export function decideTurnOrder(state) {
   const ps = state.player.stats.spd;
   const os = state.opponent.stats.spd;
-  if (ps > os) return ["player", "opponent"];
-  if (os > ps) return ["opponent", "player"];
-  return Math.random() < 0.5 ? ["player", "opponent"] : ["opponent", "player"];
+  if (ps >= os) return ["player", "opponent"];
+  return ["opponent", "player"];
 }
 
 export function cpuChooseMove(state) {
@@ -154,7 +176,7 @@ export function cpuChooseMove(state) {
     return state.opponent.moves.findIndex(m => m) || 0;
   }
 
-  if (Math.random() < 0.3) {
+  if (Math.random() < (state.modifiers?.cpuBestChance ?? 0.3)) {
     let best = movesAvailable[0];
     let bestScore = -1;
     for (const x of movesAvailable) {
@@ -189,7 +211,7 @@ export function executeTurn(state, attackerKey, moveIndex) {
   const subjectName = attacker.namePT || translateMoveName(attacker.pokemon.name);
   log.push(`${subjectName} usou ${move.displayName}!`);
 
-  const result = calculateDamage(attacker, defender, move);
+  const result = calculateDamage(attacker, defender, move, state.modifiers?.[attackerKey]);
 
   if (result.missed) {
     log.push("Mas errou o ataque!");
@@ -203,11 +225,20 @@ export function executeTurn(state, attackerKey, moveIndex) {
 
   defender.currentHp = Math.max(0, defender.currentHp - result.damage);
 
+  if (result.statusModifier && result.statusModifier < 1) {
+    log.push("A água amorteceu parte do dano de fogo!");
+  }
+
   if (result.crit) log.push("Acerto crítico!");
   const effLabel = getEffectivenessLabel(result.effectiveness);
   if (effLabel) log.push(effLabel);
 
   const targetFainted = defender.currentHp <= 0;
+  if (defender.currentHp > 0) {
+    const statusLog = maybeInflictStatus(attacker, defender, move);
+    log.push(...statusLog);
+  }
+
   if (targetFainted) {
     const targetName = defender.namePT || translateMoveName(defender.pokemon.name);
     log.push(`${targetName} desmaiou!`);
@@ -215,4 +246,27 @@ export function executeTurn(state, attackerKey, moveIndex) {
   }
 
   return { ...result, log, targetFainted };
+}
+
+function maybeInflictStatus(attacker, defender, move) {
+  const logs = [];
+  if (move.type === "water" && !defender.statusCondition && Math.random() < 0.25) {
+    defender.statusCondition = "wet";
+    logs.push(`${defender.namePT || "Oponente"} ficou molhado!`);
+  }
+  if (move.type === "poison" && !defender.statusCondition && Math.random() < 0.25) {
+    defender.statusCondition = "poisoned";
+    logs.push(`${defender.namePT || "Oponente"} foi envenenado!`);
+  }
+  return logs;
+}
+
+export function resolveStatusEffects(combatant) {
+  const log = [];
+  if (combatant.statusCondition === "poisoned" && combatant.currentHp > 0) {
+    const tick = Math.max(1, Math.floor(combatant.maxHp * 0.06));
+    combatant.currentHp = Math.max(0, combatant.currentHp - tick);
+    log.push(`${combatant.namePT || "Pokémon"} sofreu veneno e perdeu ${tick} HP!`);
+  }
+  return log;
 }

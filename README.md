@@ -38,10 +38,18 @@ Pokédex interativa com **151 pokémons da primeira geração** e uma **arena de
 
 ## ▶️ Rodando localmente
 
-Como o projeto usa módulos ES6, precisa ser servido via HTTP (não funciona abrindo o `index.html` direto via `file://`):
+Como o projeto usa módulos ES6, precisa ser servido via HTTP (não funciona abrindo o `index.html` direto via `file://`).
 
-```bash
-python3 -m http.server 8000
+No Windows, use o script de teste incluído:
+
+```powershell
+.\run-server.bat
+```
+
+ou
+
+```powershell
+.\run-server.ps1
 ```
 
 Depois abra `http://localhost:8000` no browser.
