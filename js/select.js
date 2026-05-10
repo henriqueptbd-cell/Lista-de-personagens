@@ -1,7 +1,7 @@
 import { getCachedPokemon, getPokemonNamePT } from "./api.js";
 import { openPicker } from "./pokedex.js";
 
-const state = { player: null, opponent: null };
+const state = { player: null, opponent: null, difficulty: "normal" };
 let allPokemons = [];
 let onStartCallback = null;
 
@@ -33,20 +33,45 @@ function attachListeners() {
     });
   });
 
+  const diffButtons = document.querySelectorAll(".diff-btn");
+  diffButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const diff = btn.dataset.diff;
+      if (!diff) return;
+      state.difficulty = diff;
+      refreshDifficulty();
+    });
+  });
+
   const startBtn = document.getElementById("start-battle-btn");
   if (startBtn) {
     startBtn.addEventListener("click", () => {
       if (state.player && state.opponent && onStartCallback) {
-        onStartCallback(state.player, state.opponent);
+        onStartCallback(state.player, state.opponent, state.difficulty);
       }
     });
   }
+  refreshDifficulty();
 }
 
 function refreshAll() {
   refreshSlot("player");
   refreshSlot("opponent");
   refreshStartButton();
+  refreshDifficulty();
+}
+
+function refreshDifficulty() {
+  document.querySelectorAll(".diff-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.diff === state.difficulty);
+  });
+  const hint = document.querySelector(".diff-hint");
+  if (!hint) return;
+  hint.textContent = state.difficulty === "easy"
+    ? "Você acerta mais e a CPU joga mais ingênua."
+    : state.difficulty === "hard"
+      ? "Você erra mais. A CPU prioriza o melhor ataque."
+      : "Batalha justa.";
 }
 
 function refreshSlot(which) {

@@ -42,9 +42,9 @@ async function boot() {
   attachCardListeners(allPokemons);
   fillFeaturedAndParallax();
 
-  initSelect(allPokemons, (playerId, opponentId) => {
+  initSelect(allPokemons, (playerId, opponentId, difficulty) => {
     location.hash = "#/battle";
-    startBattle(playerId, opponentId);
+    startBattle(playerId, opponentId, difficulty);
   });
 
   initVictoryActions();
@@ -94,7 +94,7 @@ function initVictoryActions() {
     hideVictoryOverlay();
     const ids = getCurrentBattleIds();
     if (ids) {
-      startBattle(ids.playerId, ids.opponentId);
+      startBattle(ids.playerId, ids.opponentId, ids.difficulty || "normal");
     } else {
       location.hash = "#/select";
     }
