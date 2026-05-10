@@ -1,4 +1,4 @@
-import { getPokemonNamePT } from "./api.js";
+import { getPokemonNamePT, fetchSpecies, fetchAbility, fetchEvolutionChain } from "./api.js";
 import { TYPE_NAMES_PT, STAT_NAMES_PT, translateMoveName } from "./translations.js";
 import { TYPE_CHART, getEffectiveness } from "./types.js";
 
@@ -71,7 +71,10 @@ export function attachCardListeners(allPokemons) {
   });
 }
 
-export function openDetailsModal(pokemon, options = {}) {
+let modalVersion = 0;
+
+export async function openDetailsModal(pokemon, options = {}) {
+  const version = ++modalVersion;
   const namePT = getPokemonNamePT(pokemon.id);
   const artwork = pokemon.sprites?.other?.["official-artwork"]?.front_default || pokemon.sprites?.front_default;
 
@@ -87,8 +90,10 @@ export function openDetailsModal(pokemon, options = {}) {
     </div>
   `).join("");
 
-  const abilitiesHtml = pokemon.abilities.slice(0, 4).map(a => `
-    <span class="attack-tag">${translateMoveName(a.ability.name)}</span>
+  const initialAbilities = pokemon.abilities.slice(0, 4).map(a => `
+    <div class="ability-item">
+      <span class="attack-tag">${translateMoveName(a.ability.name)}</span>
+    </div>
   `).join("");
 
   const typeAdv = renderTypeAdvantages(pokemon);
@@ -97,12 +102,15 @@ export function openDetailsModal(pokemon, options = {}) {
     <img src="${artwork}" alt="${namePT}" class="smooth-img">
     <h2 id="modal-title">${namePT}</h2>
     <div class="types-modal">${typesHtml}</div>
+    <div id="modal-badges" class="modal-badges"></div>
+    <p id="modal-flavor" class="flavor-text">&#8203;</p>
     <div class="type-advantage">${typeAdv}</div>
     <div class="stats-container">${statsHtml}</div>
     <div class="attacks-container">
       <h3>HABILIDADES</h3>
-      <div class="attack-list">${abilitiesHtml || '<span class="attack-tag">—</span>'}</div>
+      <div id="modal-abilities" class="ability-list">${initialAbilities || '<div class="ability-item"><span class="attack-tag">—</span></div>'}</div>
     </div>
+    <div id="modal-evolution" class="evolution-section"></div>
     ${options.onSelect || options.onBack ? '<div class="detail-actions"></div>' : ''}
   `;
 
@@ -125,6 +133,68 @@ export function openDetailsModal(pokemon, options = {}) {
   }
 
   modal().classList.add("open");
+
+  try {
+    const [species, abilitiesData] = await Promise.all([
+      fetchSpecies(pokemon.id),
+      Promise.all(pokemon.abilities.slice(0, 4).map(a => fetchAbility(a.ability.name).catch(() => null)))
+    ]);
+
+    if (version !== modalVersion) return;
+
+    const flavorEl = document.getElementById("modal-flavor");
+    if (flavorEl) {
+      const entry = pickFlavorEntry(species.flavor_text_entries);
+      flavorEl.textContent = entry ? cleanText(entry.flavor_text) : "";
+    }
+
+    const badgesEl = document.getElementById("modal-badges");
+    if (badgesEl) {
+      const badges = [];
+      if (species.is_legendary) badges.push('<span class="badge badge-legendary">LENDÁRIO</span>');
+      if (species.is_mythical)  badges.push('<span class="badge badge-mythical">MÍTICO</span>');
+      if (species.habitat)      badges.push(`<span class="badge badge-habitat">${HABITAT_PT[species.habitat.name] || species.habitat.name}</span>`);
+      badgesEl.innerHTML = badges.join("");
+    }
+
+    const abilitiesEl = document.getElementById("modal-abilities");
+    if (abilitiesEl) {
+      abilitiesEl.innerHTML = abilitiesData.map((abilityData, i) => {
+        const name = translateMoveName(pokemon.abilities[i].ability.name);
+        const desc = abilityData ? pickShortEffect(abilityData) : "";
+        return `
+          <div class="ability-item">
+            <span class="attack-tag">${name}</span>
+            ${desc ? `<p class="ability-desc">${desc}</p>` : ""}
+          </div>
+        `;
+      }).join("");
+    }
+
+    if (species.evolution_chain?.url) {
+      const chainData = await fetchEvolutionChain(species.evolution_chain.url);
+      if (version !== modalVersion) return;
+      const steps = flattenChain(chainData.chain);
+      const evoEl = document.getElementById("modal-evolution");
+      if (evoEl && steps.length > 1) {
+        evoEl.innerHTML = `
+          <h3>EVOLUÇÕES</h3>
+          <div class="evo-chain">
+            ${steps.map((step, idx) => `
+              ${idx > 0 ? '<span class="evo-arrow">→</span>' : ""}
+              <div class="evo-step">
+                <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${step.id}.png"
+                     alt="${getPokemonNamePT(step.id)}" loading="lazy">
+                <span>${getPokemonNamePT(step.id)}</span>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }
+    }
+  } catch (e) {
+    console.warn("Modal enrichment error:", e);
+  }
 }
 
 function renderTypeAdvantages(pokemon) {
@@ -192,6 +262,42 @@ export function openPicker(allPokemons, onPick) {
 
 function closeModal() {
   modal().classList.remove("open");
+}
+
+const HABITAT_PT = {
+  cave: "Caverna", forest: "Floresta", grassland: "Pastagem",
+  mountain: "Montanha", rare: "Raro", "rough-terrain": "Terreno Acidentado",
+  sea: "Mar", urban: "Urbano", "waters-edge": "Beira d'Água"
+};
+
+function pickFlavorEntry(entries) {
+  for (const lang of ["pt", "en"]) {
+    const found = [...entries].reverse().find(e => e.language.name === lang);
+    if (found) return found;
+  }
+  return entries[entries.length - 1] || null;
+}
+
+function cleanText(text) {
+  return text.replace(/[\f\n\r]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function pickShortEffect(abilityData) {
+  for (const lang of ["pt-BR", "pt", "en"]) {
+    const flavor = [...(abilityData.flavor_text_entries || [])].reverse()
+      .find(e => e.language.name === lang);
+    if (flavor?.flavor_text) return cleanText(flavor.flavor_text);
+  }
+  const entry = abilityData.effect_entries?.find(e => e.language.name === "en");
+  return entry?.short_effect || "";
+}
+
+function flattenChain(node, result = []) {
+  const url = node.species?.url || "";
+  const match = url.match(/\/(\d+)\/$/);
+  if (match) result.push({ id: parseInt(match[1], 10) });
+  for (const next of (node.evolves_to || [])) flattenChain(next, result);
+  return result;
 }
 
 export function initModalListeners() {

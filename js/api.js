@@ -62,3 +62,30 @@ export async function fetchAllGen1(onProgress) {
 export function getCachedPokemon(id) {
   return pokemonCache.get(id) || null;
 }
+
+const speciesCache = new Map();
+const abilityCache = new Map();
+
+export async function fetchSpecies(id) {
+  if (speciesCache.has(id)) return speciesCache.get(id);
+  const res = await fetch(`${API}/pokemon-species/${id}`);
+  if (!res.ok) throw new Error(`Species ${id}`);
+  const data = await res.json();
+  speciesCache.set(id, data);
+  return data;
+}
+
+export async function fetchAbility(name) {
+  if (abilityCache.has(name)) return abilityCache.get(name);
+  const res = await fetch(`${API}/ability/${name}`);
+  if (!res.ok) throw new Error(`Ability ${name}`);
+  const data = await res.json();
+  abilityCache.set(name, data);
+  return data;
+}
+
+export async function fetchEvolutionChain(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Evolution chain");
+  return res.json();
+}
