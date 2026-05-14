@@ -42,44 +42,69 @@ export async function startBattle(playerId, opponentId, mode = "cpu", difficulty
 
 function renderBattle(state) {
   const arena = document.getElementById("arena");
-  const playerSprite   = pickSprite(state.player.pokemon, "player");
-  const opponentSprite = pickSprite(state.opponent.pokemon, "opponent");
+  const playerSprite   = pickSprite(state.player.pokemon);
+  const opponentSprite = pickSprite(state.opponent.pokemon);
 
   arena.innerHTML = `
     <div class="arena-stage">
       <div class="combatant opponent" id="combatant-opponent">
-        <div class="info">
-          <div class="name-row"><span>${state.opponent.namePT}</span></div>
-          <div class="hp-label">HP</div>
-          <div class="hp-bar-bg"><div class="hp-bar" id="hp-opponent" style="width:100%"></div></div>
-          <div class="hp-text" id="hp-text-opponent">${state.opponent.currentHp} / ${state.opponent.maxHp}</div>
+        <div class="hp-card">
+          <div class="name-row">
+            <span class="name">${state.opponent.namePT}</span>
+            <span class="lvl">Lv.${state.opponent.level}</span>
+          </div>
+          <div class="hp-row">
+            <span class="hp-label">HP</span>
+            <div class="hp-bar-bg"><div class="hp-bar" id="hp-opponent" style="width:100%"></div></div>
+            <span class="hp-text" id="hp-text-opponent">${state.opponent.currentHp}/${state.opponent.maxHp}</span>
+          </div>
           ${state.opponent.statusCondition ? `<div class="status-pill" id="status-opponent">${statusLabel(state.opponent.statusCondition)}</div>` : ""}
         </div>
-        <div class="sprite"><img src="${opponentSprite}" alt="${state.opponent.namePT}"></div>
+        <div class="stage-area">
+          <div class="sprite"><img src="${opponentSprite}" alt="${state.opponent.namePT}"></div>
+          <div class="platform"></div>
+        </div>
       </div>
-      <div class="combatant" id="combatant-player">
-        <div class="sprite"><img src="${playerSprite}" alt="${state.player.namePT}"></div>
-        <div class="info">
-          <div class="name-row"><span>${state.player.namePT}</span></div>
-          <div class="hp-label">HP</div>
-          <div class="hp-bar-bg"><div class="hp-bar" id="hp-player" style="width:100%"></div></div>
-          <div class="hp-text" id="hp-text-player">${state.player.currentHp} / ${state.player.maxHp}</div>
+
+      <div class="combatant player" id="combatant-player">
+        <div class="hp-card">
+          <div class="name-row">
+            <span class="name">${state.player.namePT}</span>
+            <span class="lvl">Lv.${state.player.level}</span>
+          </div>
+          <div class="hp-row">
+            <span class="hp-label">HP</span>
+            <div class="hp-bar-bg"><div class="hp-bar" id="hp-player" style="width:100%"></div></div>
+            <span class="hp-text" id="hp-text-player">${state.player.currentHp}/${state.player.maxHp}</span>
+          </div>
           ${state.player.statusCondition ? `<div class="status-pill" id="status-player">${statusLabel(state.player.statusCondition)}</div>` : ""}
+        </div>
+        <div class="stage-area">
+          <div class="sprite"><img src="${playerSprite}" alt="${state.player.namePT}"></div>
+          <div class="platform"></div>
         </div>
       </div>
     </div>
+
     <div class="battle-bottom">
-      <div class="move-grid" id="move-grid"></div>
+      <div class="action-panel" id="action-panel">
+        <div class="action-prompt" id="action-prompt">O que ${state.player.namePT} vai fazer?</div>
+        <div class="action-grid" id="action-grid">
+          <button class="action-btn" data-action="atk">▶ ATK</button>
+          <button class="action-btn" data-action="def" disabled>DEF</button>
+          <button class="action-btn" data-action="item" disabled>ITEM</button>
+          <button class="action-btn" data-action="run">FUGIR</button>
+        </div>
+        <div class="move-grid hidden" id="move-grid"></div>
+        <button class="back-btn hidden" id="back-btn">‹ VOLTAR</button>
+      </div>
       <div class="battle-log" id="battle-log"></div>
     </div>
   `;
 }
 
-function pickSprite(pokemon, side) {
+function pickSprite(pokemon) {
   const v = pokemon.sprites?.versions?.["generation-v"]?.["black-white"]?.animated;
-  if (side === "player") {
-    return v?.back_default || pokemon.sprites?.back_default || pokemon.sprites?.front_default;
-  }
   return v?.front_default || pokemon.sprites?.front_default;
 }
 
@@ -123,46 +148,122 @@ async function battleLoop() {
   }
 }
 
-function awaitMoveChoice(sideKey) {
+function awaitPlayerAction(sideKey) {
   return new Promise(resolve => {
-    const grid = document.getElementById("move-grid");
-    if (!grid) return resolve(0);
-    grid.innerHTML = renderMoves(currentState, sideKey);
-    const handler = (e) => {
+    const actionGrid = document.getElementById("action-grid");
+    const moveGrid   = document.getElementById("move-grid");
+    const backBtn    = document.getElementById("back-btn");
+    const prompt     = document.getElementById("action-prompt");
+    if (!actionGrid) return resolve({ kind: "move", index: 0 });
+
+    actionGrid.classList.remove("hidden");
+    moveGrid.classList.add("hidden");
+    backBtn.classList.add("hidden");
+    prompt.textContent = `O que ${currentState[sideKey].namePT} vai fazer?`;
+
+    const cleanup = () => {
+      actionGrid.removeEventListener("click", onAction);
+      moveGrid.removeEventListener("click", onMove);
+      backBtn.removeEventListener("click", onBack);
+    };
+
+    const onAction = (e) => {
+      const btn = e.target.closest(".action-btn");
+      if (!btn || btn.disabled) return;
+      const action = btn.dataset.action;
+
+      if (action === "atk") {
+        actionGrid.classList.add("hidden");
+        moveGrid.classList.remove("hidden");
+        backBtn.classList.remove("hidden");
+        moveGrid.innerHTML = renderMoves(currentState, sideKey);
+        prompt.textContent = "Escolha um ataque:";
+        return;
+      }
+      if (action === "run") {
+        cleanup();
+        confirmRun().then(confirmed => {
+          if (confirmed) resolve({ kind: "run" });
+          else awaitPlayerAction(sideKey).then(resolve);
+        });
+      }
+    };
+
+    const onMove = (e) => {
       const btn = e.target.closest(".move-btn");
       if (!btn || btn.disabled) return;
-      grid.removeEventListener("click", handler);
-      resolve(parseInt(btn.dataset.i, 10));
+      cleanup();
+      resolve({ kind: "move", index: parseInt(btn.dataset.i, 10) });
     };
-    grid.addEventListener("click", handler);
+
+    const onBack = () => {
+      actionGrid.classList.remove("hidden");
+      moveGrid.classList.add("hidden");
+      backBtn.classList.add("hidden");
+      prompt.textContent = `O que ${currentState[sideKey].namePT} vai fazer?`;
+    };
+
+    actionGrid.addEventListener("click", onAction);
+    moveGrid.addEventListener("click", onMove);
+    backBtn.addEventListener("click", onBack);
   });
 }
 
 async function runRoundCPU() {
   if (!currentState || currentState.status !== "ongoing") return;
-  const playerMoveIndex   = await awaitMoveChoice("player");
+  const a = await awaitPlayerAction("player");
+  if (a.kind === "run") { await handlePlayerRun("player"); return; }
   const opponentMoveIndex = cpuChooseMove(currentState);
-  await resolveRound({ player: playerMoveIndex, opponent: opponentMoveIndex });
+  await resolveRound({ player: a.index, opponent: opponentMoveIndex });
 }
 
 async function runRoundPvP() {
   if (!currentState || currentState.status !== "ongoing") return;
 
   await showHandoff("Vez do Jogador 1", "Passe o aparelho e toque para continuar");
-  const playerMoveIndex = await awaitMoveChoice("player");
-  hideMoveGrid();
+  const a1 = await awaitPlayerAction("player");
+  if (a1.kind === "run") { await handlePlayerRun("player"); return; }
+  hideActionPanel();
 
   await showHandoff("Vez do Jogador 2", "Passe o aparelho e toque para continuar");
-  const opponentMoveIndex = await awaitMoveChoice("opponent");
-  hideMoveGrid();
+  const a2 = await awaitPlayerAction("opponent");
+  if (a2.kind === "run") { await handlePlayerRun("opponent"); return; }
+  hideActionPanel();
 
   await showHandoff("Batalha!", "", { auto: 700 });
-  await resolveRound({ player: playerMoveIndex, opponent: opponentMoveIndex });
+  await resolveRound({ player: a1.index, opponent: a2.index });
 }
 
-function hideMoveGrid() {
-  const grid = document.getElementById("move-grid");
-  if (grid) grid.innerHTML = "";
+function hideActionPanel() {
+  document.getElementById("action-grid")?.classList.add("hidden");
+  document.getElementById("move-grid")?.classList.add("hidden");
+  document.getElementById("back-btn")?.classList.add("hidden");
+}
+
+function confirmRun() {
+  return new Promise(resolve => {
+    const overlay = document.getElementById("run-confirm-overlay");
+    if (!overlay) return resolve(false);
+    overlay.hidden = false;
+    const yes = document.getElementById("run-yes");
+    const no  = document.getElementById("run-no");
+    const cleanup = () => {
+      overlay.hidden = true;
+      yes.removeEventListener("click", onYes);
+      no.removeEventListener("click", onNo);
+    };
+    const onYes = () => { cleanup(); resolve(true); };
+    const onNo  = () => { cleanup(); resolve(false); };
+    yes.addEventListener("click", onYes);
+    no.addEventListener("click", onNo);
+  });
+}
+
+async function handlePlayerRun(side = "player") {
+  currentState.status = side === "player" ? "opponent-won" : "player-won";
+  await appendLog(`${currentState[side].namePT} fugiu da batalha!`);
+  await sleep(600);
+  showVictory();
 }
 
 function showHandoff(title, subtitle, { auto } = {}) {
@@ -206,7 +307,7 @@ async function resolveRound(moves) {
       await appendLog(line);
     }
 
-    if (!result.missed) {
+    if (!result.missed && !result.isStatus) {
       await playMoveAnimation(actor, targetKey, move);
     }
 
@@ -244,18 +345,64 @@ async function resolveRound(moves) {
 
 // ─── Animations ──────────────────────────────────────────────────────────────
 
+const TYPE_EMOJI = {
+  fire:     "🔥",
+  water:    "💧",
+  grass:    "🌿",
+  electric: "⚡",
+  ice:      "❄️",
+  ground:   "🪨",
+  rock:     "🪨",
+  flying:   "🌪️",
+  psychic:  "🧠",
+  poison:   "☠️",
+  bug:      "🐛",
+  fighting: "👊",
+  ghost:    "👻",
+  dragon:   "🐉",
+  steel:    "⚙️",
+  dark:     "🌑",
+  fairy:    "✨",
+  normal:   "💥"
+};
+
 function playMoveAnimation(actor, targetKey, move) {
   return new Promise(resolve => {
+    const stage      = document.querySelector(".arena-stage");
     const attackerEl = document.getElementById(`combatant-${actor}`);
     const targetEl   = document.getElementById(`combatant-${targetKey}`);
-    if (!attackerEl || !targetEl) return resolve();
+    if (!stage || !attackerEl || !targetEl) return resolve();
+
     const klass = move?.damageClass || "physical";
     const type  = move?.type || "normal";
+
     attackerEl.classList.add(`atk-${klass}`);
     targetEl.classList.add(`fx-${type}`);
+
+    const stageRect = stage.getBoundingClientRect();
+    const fromRect  = (attackerEl.querySelector(".sprite") || attackerEl).getBoundingClientRect();
+    const toRect    = (targetEl.querySelector(".sprite")   || targetEl).getBoundingClientRect();
+
+    const startX = fromRect.left - stageRect.left + fromRect.width / 2;
+    const startY = fromRect.top  - stageRect.top  + fromRect.height / 2;
+    const endX   = toRect.left   - stageRect.left + toRect.width / 2;
+    const endY   = toRect.top    - stageRect.top  + toRect.height / 2;
+
+    const emoji = TYPE_EMOJI[type] || TYPE_EMOJI.normal;
+    const projectile = document.createElement("div");
+    projectile.className = `attack-anim type-${type}`;
+    projectile.setAttribute("aria-hidden", "true");
+    projectile.textContent = emoji;
+    projectile.style.setProperty("--start-x", `${startX}px`);
+    projectile.style.setProperty("--start-y", `${startY}px`);
+    projectile.style.setProperty("--end-x",   `${endX}px`);
+    projectile.style.setProperty("--end-y",   `${endY}px`);
+    stage.appendChild(projectile);
+
     setTimeout(() => {
       attackerEl.classList.remove(`atk-${klass}`);
       targetEl.classList.remove(`fx-${type}`);
+      projectile.remove();
       resolve();
     }, 650);
   });
