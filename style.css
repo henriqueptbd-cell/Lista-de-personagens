@@ -1071,40 +1071,67 @@ a { color: inherit; text-decoration: none; }
   max-width: 700px;
   background: linear-gradient(180deg, #b3e0ff, #d4f1c5 60%, #6fa86f 100%);
   border: 4px solid var(--gb-darkest);
-  padding: 1rem;
+  padding: 1rem 0.75rem 0.5rem;
   position: relative;
   min-height: 320px;
   box-shadow: 0 0 0 4px var(--gb-light), 0 8px 24px rgba(0,0,0,0.3);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.6rem;
+  overflow: hidden;
 }
 .combatant {
-  display: flex; gap: 0.75rem;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 0.5rem;
-}
-.combatant.opponent { justify-content: flex-end; flex-direction: row-reverse; }
-.combatant .info {
   flex: 1;
+  max-width: 48%;
+  gap: 0.45rem;
+}
+.combatant.opponent { align-self: flex-start; }
+.combatant.player   { align-self: flex-end; }
+
+.hp-card {
   background: var(--gb-bg);
   border: 3px solid var(--gb-darkest);
-  padding: 0.5rem 0.75rem;
-  font-size: 1rem;
-  max-width: 220px;
-}
-.combatant .name-row {
+  padding: 0.45rem 0.6rem;
+  width: 100%;
   font-family: 'Press Start 2P', monospace;
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   color: var(--gb-darkest);
-  margin-bottom: 0.3rem;
-  letter-spacing: 1px;
-  display: flex; justify-content: space-between;
+  box-shadow: 0 2px 0 var(--gb-darkest);
+}
+.hp-card .name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.35rem;
+  letter-spacing: 0.5px;
+}
+.hp-card .name { font-size: 0.6rem; }
+.hp-card .lvl  { font-size: 0.55rem; color: var(--gb-dark); }
+.hp-card .hp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.hp-card .status-pill {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.45rem;
+  background: var(--gb-darkest);
+  color: var(--gb-light);
+  letter-spacing: 0.5px;
 }
 .hp-label { font-family: 'Press Start 2P', monospace; font-size: 0.5rem; color: var(--gb-dark); }
 .hp-bar-bg {
+  flex: 1;
   background: var(--gb-darkest);
-  height: 12px;
-  border-radius: 6px;
+  height: 10px;
+  border-radius: 5px;
   overflow: hidden;
-  margin-top: 0.2rem;
 }
 .hp-bar {
   height: 100%;
@@ -1112,24 +1139,49 @@ a { color: inherit; text-decoration: none; }
   width: 100%;
   transition: width 0.6s ease, background 0.3s;
 }
-.hp-bar.low { background: var(--t-electric); }
+.hp-bar.low      { background: var(--t-electric); }
 .hp-bar.critical { background: var(--t-fire); }
 .hp-text {
-  font-size: 0.95rem; color: var(--gb-darkest);
-  margin-top: 0.2rem;
-  text-align: right;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.5rem;
+  color: var(--gb-darkest);
+  white-space: nowrap;
+}
+
+.stage-area {
+  position: relative;
+  margin-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .combatant .sprite {
-  width: clamp(80px, 22vw, 140px);
-  height: clamp(80px, 22vw, 140px);
+  width: clamp(80px, 22vw, 130px);
+  height: clamp(80px, 22vw, 130px);
   display: flex; align-items: center; justify-content: center;
   position: relative;
   overflow: visible;
+  z-index: 2;
 }
 .combatant .sprite img {
   width: 100%; height: 100%; object-fit: contain;
+  image-rendering: pixelated;
   transition: transform 0.2s;
 }
+/* Player espelhado pra encarar o oponente — flip vai no wrapper .sprite
+ * pra não conflitar com transforms aplicados ao <img> (shake, faint, atk-physical). */
+.combatant.player .sprite { transform: scaleX(-1); }
+
+.platform {
+  width: 110%;
+  height: 16px;
+  margin-top: -8px;
+  background: radial-gradient(ellipse, var(--gb-darkest) 30%, transparent 70%);
+  opacity: 0.45;
+  border-radius: 50%;
+  z-index: 1;
+}
+
 .combatant.shake .sprite img { animation: shake 0.5s; }
 @keyframes shake {
   0%, 100% { transform: translate(0, 0); filter: brightness(1); }
@@ -1212,6 +1264,161 @@ a { color: inherit; text-decoration: none; }
   color: var(--gb-darkest);
   line-height: 1.3;
 }
+
+/* =========================================================
+   ACTION PANEL (ATK / DEF / ITEM / FUGIR)
+   ========================================================= */
+.action-panel {
+  background: var(--gb-bg);
+  border: 3px solid var(--gb-darkest);
+  padding: 0.7rem 0.7rem 0.8rem;
+  position: relative;
+}
+.action-prompt {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.6rem;
+  color: var(--gb-darkest);
+  margin-bottom: 0.55rem;
+  letter-spacing: 0.5px;
+}
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+.action-btn {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.75rem;
+  padding: 0.8rem 0.5rem;
+  background: var(--gb-bg);
+  border: 3px solid var(--gb-darkest);
+  color: var(--gb-darkest);
+  cursor: pointer;
+  text-align: left;
+  letter-spacing: 1px;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+}
+.action-btn:hover:not(:disabled),
+.action-btn:focus-visible:not(:disabled) {
+  background: var(--gb-darkest);
+  color: var(--gb-light);
+  outline: none;
+}
+.action-btn:active:not(:disabled) { transform: translateY(2px); }
+.action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.back-btn {
+  margin-top: 0.5rem;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.55rem;
+  background: var(--gb-dark);
+  color: var(--gb-bg);
+  border: 2px solid var(--gb-darkest);
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+.back-btn:hover { background: var(--gb-darkest); }
+
+.hidden { display: none !important; }
+
+/* =========================================================
+   ATTACK ANIMATION — PROJÉTIL EMOJI POR TIPO
+   ========================================================= */
+.attack-anim {
+  position: absolute;
+  left: 0; top: 0;
+  font-size: 2.4rem;
+  pointer-events: none;
+  z-index: 10;
+  filter: drop-shadow(0 0 6px currentColor);
+  transform: translate(var(--start-x), var(--start-y));
+  animation: attack-base 600ms ease-out forwards;
+}
+@keyframes attack-base {
+  0%   { transform: translate(var(--start-x), var(--start-y)) scale(0.6); opacity: 0; }
+  20%  { transform: translate(var(--start-x), var(--start-y)) scale(1.0); opacity: 1; }
+  80%  { transform: translate(var(--end-x),   var(--end-y))   scale(1.0); opacity: 1; }
+  100% { transform: translate(var(--end-x),   var(--end-y))   scale(1.8); opacity: 0; }
+}
+.attack-anim.type-fire     { color: #ff6b35; }
+.attack-anim.type-water    { color: #4aa3df; }
+.attack-anim.type-grass    { color: #6ec06e; }
+.attack-anim.type-electric { color: #f7d11d; animation: attack-electric 500ms steps(8) forwards; }
+.attack-anim.type-ice      { color: #9cd9e3; }
+.attack-anim.type-ground   { color: #c7a45a; animation: attack-ground 700ms ease-in forwards; }
+.attack-anim.type-rock     { color: #8a6a3a; animation: attack-ground 700ms ease-in forwards; }
+.attack-anim.type-flying   { color: #a4c4f5; }
+.attack-anim.type-psychic  { color: #f06ea0; }
+.attack-anim.type-poison   { color: #a040a0; }
+.attack-anim.type-bug      { color: #98b830; }
+.attack-anim.type-fighting { color: #c03028; }
+.attack-anim.type-ghost    { color: #705898; }
+.attack-anim.type-dragon   { color: #7038f8; }
+.attack-anim.type-steel    { color: #b8b8d0; }
+.attack-anim.type-dark     { color: #4f3a2c; }
+.attack-anim.type-fairy    { color: #ee99ac; }
+.attack-anim.type-normal   { color: #a8a878; }
+
+@keyframes attack-electric {
+  0%, 25%, 50%, 75%, 100% {
+    transform: translate(var(--end-x),   var(--end-y))   scale(1.4);
+    opacity: 1;
+  }
+  12.5%, 37.5%, 62.5%, 87.5% {
+    transform: translate(var(--start-x), var(--start-y)) scale(1);
+    opacity: 0.6;
+  }
+}
+@keyframes attack-ground {
+  0%   { transform: translate(var(--start-x), calc(var(--start-y) - 40px)) scale(0.8); opacity: 0; }
+  30%  { transform: translate(var(--start-x), var(--start-y)) scale(1); opacity: 1; }
+  100% { transform: translate(var(--end-x),   var(--end-y))   scale(1.6); opacity: 0; }
+}
+
+/* =========================================================
+   RUN CONFIRMATION OVERLAY
+   ========================================================= */
+.run-confirm-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 400;
+}
+.run-confirm-overlay[hidden] { display: none; }
+.run-card {
+  background: var(--gb-bg);
+  border: 4px solid var(--gb-darkest);
+  padding: 1.4rem;
+  text-align: center;
+  max-width: 340px;
+  width: 90%;
+  font-family: 'Press Start 2P', monospace;
+  color: var(--gb-darkest);
+  box-shadow: 0 0 0 4px var(--gb-light);
+}
+.run-card h2 { font-size: 0.9rem; margin: 0 0 0.8rem; letter-spacing: 1px; }
+.run-card p  {
+  font-family: 'VT323', monospace;
+  font-size: 1.1rem;
+  margin: 0 0 1.2rem;
+  color: var(--gb-dark);
+}
+.run-actions { display: flex; gap: 0.6rem; }
+.run-actions button {
+  flex: 1;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.6rem;
+  padding: 0.75rem 0.4rem;
+  cursor: pointer;
+  border: 3px solid var(--gb-darkest);
+  letter-spacing: 0.5px;
+}
+.run-yes { background: var(--t-fire, #c02020); color: #fff; }
+.run-no  { background: var(--gb-dark); color: var(--gb-bg); }
+.run-yes:hover { filter: brightness(1.15); }
+.run-no:hover  { background: var(--gb-darkest); }
+
 .difficulty-picker {
   margin: 1rem 0 0.75rem;
   padding: 0.85rem 0.9rem;
@@ -1291,48 +1498,21 @@ a { color: inherit; text-decoration: none; }
   .move-grid { grid-template-columns: 1fr; }
   .move-btn { min-height: 86px; }
   .move-btn .move-desc { font-size: 0.95rem; }
+
+  .arena-stage      { min-height: 220px; padding: 0.75rem 0.4rem 0.4rem; gap: 0.3rem; }
+  .combatant        { gap: 0.3rem; }
+  .combatant .sprite { width: clamp(70px, 26vw, 96px); height: clamp(70px, 26vw, 96px); }
+  .hp-card          { padding: 0.3rem 0.4rem; font-size: 0.45rem; }
+  .hp-card .name    { font-size: 0.5rem; }
+  .hp-card .lvl,
+  .hp-card .hp-label,
+  .hp-card .hp-text { font-size: 0.42rem; }
+  .hp-card .status-pill { font-size: 0.4rem; }
+  .action-btn       { font-size: 0.62rem; padding: 0.65rem 0.45rem; }
+  .action-prompt    { font-size: 0.52rem; }
+  .attack-anim      { font-size: 1.8rem; }
 }
 
-
-/* =========================================================
-   ATTACK ANIMATIONS — TARGET flash (type)
-   ========================================================= */
-.combatant .sprite::after {
-  content: "";
-  position: absolute;
-  inset: -20%;
-  pointer-events: none;
-  opacity: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--fx-color, white) 0%, transparent 65%);
-  mix-blend-mode: screen;
-}
-@keyframes fx-flash {
-  0%   { opacity: 0;    transform: scale(0.4); }
-  30%  { opacity: 0.95; transform: scale(1.2); }
-  70%  { opacity: 0.6;  transform: scale(1.4); }
-  100% { opacity: 0;    transform: scale(1.6); }
-}
-.combatant[class*="fx-"] .sprite::after { animation: fx-flash 0.55s ease-out; }
-
-.combatant.fx-fire     { --fx-color: #ff5722; }
-.combatant.fx-water    { --fx-color: #2196f3; }
-.combatant.fx-electric { --fx-color: #ffeb3b; }
-.combatant.fx-grass    { --fx-color: #4caf50; }
-.combatant.fx-ice      { --fx-color: #90caf9; }
-.combatant.fx-fighting { --fx-color: #b71c1c; }
-.combatant.fx-poison   { --fx-color: #9c27b0; }
-.combatant.fx-ground   { --fx-color: #8d6e63; }
-.combatant.fx-flying   { --fx-color: #b3e5fc; }
-.combatant.fx-psychic  { --fx-color: #e91e63; }
-.combatant.fx-bug      { --fx-color: #8bc34a; }
-.combatant.fx-rock     { --fx-color: #795548; }
-.combatant.fx-ghost    { --fx-color: #7b1fa2; }
-.combatant.fx-dragon   { --fx-color: #5e35b1; }
-.combatant.fx-dark     { --fx-color: #424242; }
-.combatant.fx-steel    { --fx-color: #b0bec5; }
-.combatant.fx-fairy    { --fx-color: #f48fb1; }
-.combatant.fx-normal   { --fx-color: #fafafa; }
 
 /* =========================================================
    ERROR / LOADING STATES
@@ -1449,34 +1629,31 @@ a { color: inherit; text-decoration: none; }
 
 /* =========================================================
    ATTACK ANIMATIONS — ATTACKER MOVEMENT (by damage_class)
+   Aplica no .combatant (parent) pra não conflitar com o
+   transform: scaleX(-1) do .sprite do player.
    ========================================================= */
-@keyframes atk-physical-player {
+@keyframes atk-physical-right {
   0%   { transform: translateX(0); }
-  40%  { transform: translateX(48px) scale(1.08); }
-  55%  { transform: translateX(48px) scale(1.08); }
+  40%  { transform: translateX(36px); }
+  55%  { transform: translateX(36px); }
   100% { transform: translateX(0); }
 }
-@keyframes atk-physical-opponent {
+@keyframes atk-physical-left {
   0%   { transform: translateX(0); }
-  40%  { transform: translateX(-48px) scale(1.08); }
-  55%  { transform: translateX(-48px) scale(1.08); }
+  40%  { transform: translateX(-36px); }
+  55%  { transform: translateX(-36px); }
   100% { transform: translateX(0); }
 }
-.combatant.atk-physical .sprite img {
-  animation: atk-physical-player 0.6s ease-out;
-}
-.combatant.opponent.atk-physical .sprite img {
-  animation: atk-physical-opponent 0.6s ease-out;
-}
+.combatant.player.atk-physical   { animation: atk-physical-right 0.6s ease-out; }
+.combatant.opponent.atk-physical { animation: atk-physical-left  0.6s ease-out; }
 
 @keyframes atk-special {
-  0%   { transform: scale(1)    translateX(0);     filter: brightness(1); }
-  25%  { transform: scale(0.9)  translateX(-12px); filter: brightness(1.3) saturate(1.4); }
-  55%  { transform: scale(1.05) translateX(0);     filter: brightness(1.8) saturate(1.6); }
-  100% { transform: scale(1)    translateX(0);     filter: brightness(1); }
+  0%   { filter: brightness(1)   saturate(1);   transform: scale(1); }
+  25%  { filter: brightness(1.3) saturate(1.4); transform: scale(0.92); }
+  55%  { filter: brightness(1.8) saturate(1.6); transform: scale(1.06); }
+  100% { filter: brightness(1)   saturate(1);   transform: scale(1); }
 }
-.combatant.atk-special .sprite img,
-.combatant.opponent.atk-special .sprite img {
+.combatant.atk-special .sprite img {
   animation: atk-special 0.65s ease-out;
 }
 
@@ -1484,8 +1661,7 @@ a { color: inherit; text-decoration: none; }
   0%, 100% { transform: scale(1);    filter: brightness(1)   saturate(1); }
   50%      { transform: scale(1.08); filter: brightness(1.5) saturate(1.6) hue-rotate(15deg); }
 }
-.combatant.atk-status .sprite img,
-.combatant.opponent.atk-status .sprite img {
+.combatant.atk-status .sprite img {
   animation: atk-status 0.6s ease-in-out;
 }
 
@@ -1531,27 +1707,15 @@ a { color: inherit; text-decoration: none; }
 .combatant.fx-normal   { --fx-color: #fafafa; }
 
 @media (prefers-reduced-motion: reduce) {
-  .combatant.atk-physical .sprite img,
-  .combatant.opponent.atk-physical .sprite img,
-  .combatant.atk-special .sprite img,
-  .combatant.opponent.atk-special .sprite img,
-  .combatant.atk-status .sprite img,
-  .combatant.opponent.atk-status .sprite img,
-  .combatant[class*="fx-"] .sprite::after {
-    animation-duration: 0.15s !important;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01s !important;
   }
-  .combatant.atk-physical .sprite img,
-  .combatant.opponent.atk-physical .sprite img,
+  .attack-anim,
+  .combatant.atk-physical,
   .combatant.atk-special .sprite img,
-  .combatant.atk-status  .sprite img,
+  .combatant.atk-status .sprite img,
   .combatant[class*="fx-"] .sprite::after {
     animation-duration: 0.15s !important;
   }
